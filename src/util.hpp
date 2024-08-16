@@ -16,3 +16,5 @@ void DrawCenteredText(const char *text, float fontSize, Vector2 maxSize,
                       Color color);
 
 Vector2 operator/(Vector2 a, float b);
+
+int GetRotationFromDirection(Direction dir);

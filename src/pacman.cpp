@@ -1,4 +1,5 @@
 #include "pacman.hpp"
+#include "asset_manager.hpp"
 #include "config.hpp"
 #include "direction.hpp"
 #include "entity.hpp"
@@ -8,15 +9,17 @@
 #include <fstream>
 #include <iostream>
 #include <raylib.h>
+#include <rlgl.h>
 #include <sstream>
 #include <string>
 
-// FIX: pacman going through original gate position becomes invisible (why is
-// gate pos not EMPTY)
+// FIX: pacman going through original gate position becomes invisible
 // TODO: move ghosts with ai towards player
+// TODO: add ghost texture (and animation)
 
 Pacman::Pacman() {
   r = new Raylib;
+  am = new AssetManager;
   winSize = GetWindowSize();
 
   Restart();
@@ -26,18 +29,22 @@ bool Pacman::ShouldClose() { return WindowShouldClose(); }
 
 void Pacman::Update() {
   HandleResize();
+
   HandlePaused();
   if (paused) {
     return;
   }
+
   if (won) {
     HandleWon();
     return;
   }
+
   if (lost) {
     HandleLost();
     return;
   }
+
   HandleInput();
   HandleTimers();
 }
@@ -51,11 +58,13 @@ void Pacman::Draw() {
     goto end_drawing;
     return;
   }
+
   if (won) {
     DrawWon();
     goto end_drawing;
     return;
   }
+
   if (lost) {
     DrawLost();
     goto end_drawing;
@@ -70,7 +79,10 @@ end_drawing:
   EndDrawing();
 }
 
-Pacman::~Pacman() { delete r; }
+Pacman::~Pacman() {
+  delete am;
+  delete r;
+}
 
 void Pacman::Restart() {
   ParseMap();
@@ -83,6 +95,12 @@ void Pacman::Restart() {
 
   score = 0;
   lost = won = paused = false;
+
+  pacmanAnimFrame = 0;
+  pacmanAnimTimer = PACMAN_ANIM_INTERVAL;
+
+  StopAllSounds();
+  PlaySound(am->intro);
 }
 
 void Pacman::HandleResize() {
@@ -103,6 +121,7 @@ void Pacman::ParseMap() {
 
   std::string line;
   int idY = 0;
+  int ghostIndex = 0;
 
   while (std::getline(file, line)) {
     int idX = 0;
@@ -134,6 +153,7 @@ void Pacman::ParseMap() {
         map[idY][idX++] = Entity::PACMAN;
         break;
       case 'g':
+        ghosts[ghostIndex++] = {(float)idX, (float)idY};
         map[idY][idX++] = Entity::GHOST;
         break;
       }
@@ -142,6 +162,7 @@ void Pacman::ParseMap() {
 
     idY++;
   }
+
   assert(idY == MAP_SIZE_Y);
   assert(CountEntities(Entity::PACMAN) == 1);
   assert(CountEntities(Entity::GATE) == 1);
@@ -196,6 +217,7 @@ void Pacman::HandleInput() {
   switch (eaten) {
   case BALL:
     score += SCORE_INTERVAL;
+    PlaySound(am->ball);
     if (CountEntities(Entity::BALL) == 1) {
       won = true;
       return;
@@ -209,15 +231,21 @@ void Pacman::HandleInput() {
     break;
   case POWER_BALL:
     powerTimer = POWER_TIME;
+    StopAllSounds();
+    PlaySound(am->power);
     break;
   case PACMAN:
     break;
   case GHOST:
     if (powerTimer <= 0.0f) {
+      StopAllSounds();
+      PlaySound(am->death);
       lost = true;
       return;
     } else {
       score += SCORE_INTERVAL_KILL;
+      StopAllSounds();
+      PlaySound(am->ghost);
     }
     break;
   }
@@ -233,11 +261,19 @@ void Pacman::HandleTimers() {
 
   gateOpenTimer -= delta;
   if (gateOpenTimer <= 0.0f) {
-    // remove gate
     map[(int)gate.y][(int)gate.x] = Entity::EMPTY;
   }
 
   powerTimer -= delta;
+
+  pacmanAnimTimer -= delta;
+  if (pacmanAnimTimer <= 0.0f) {
+    pacmanAnimTimer = PACMAN_ANIM_INTERVAL;
+    pacmanAnimFrame++;
+    if (pacmanAnimFrame == PACMAN_FRAME_COUNT) {
+      pacmanAnimFrame = 0;
+    }
+  }
 }
 
 int Pacman::CountEntities(Entity entity) {
@@ -292,6 +328,7 @@ void Pacman::DrawMap() {
   int radiusStatic = radiusMoveable / 2;
   int gateThick = cellH / 4;
   int wallThick = 2;
+  int ghostIndex = 0;
 
   for (int i = 0; i < MAP_SIZE_Y; ++i) {
     for (int j = 0; j < MAP_SIZE_X; ++j) {
@@ -324,11 +361,20 @@ void Pacman::DrawMap() {
         DrawCircle(cellXCenter, cellYCenter, radiusStatic, COLOR_POWER_BALL);
         break;
       case PACMAN:
-        DrawCircle(cellXCenter, cellYCenter, radiusMoveable,
-                   powerTimer > 0.0f ? COLOR_PACMAN_POWER : COLOR_PACMAN);
+        DrawPacman(cellXCenter, cellYCenter);
         break;
       case GHOST:
-        DrawCircle(cellXCenter, cellYCenter, radiusMoveable, COLOR_GHOST);
+        DrawTexturePro(am->ghostTex[ghostIndex][0],
+                       {0, 0, (float)am->ghostTex[ghostIndex]->width,
+                        (float)am->ghostTex[ghostIndex]->height},
+                       {(float)cellX, (float)cellY, (float)cellW, (float)cellH},
+                       {0, 0}, 0, WHITE);
+        ghostIndex++;
+        DrawTexturePro(
+            am->eyes[1],
+            {0, 0, (float)am->eyes[0].width, (float)am->eyes[1].height},
+            {(float)cellX, (float)cellY, (float)cellW, (float)cellH}, {0, 0}, 0,
+            WHITE);
         break;
       }
     }
@@ -344,4 +390,36 @@ void Pacman::DrawScore() {
       t, FONT_SIZE,
       {(float)GetRenderWidth() / 6, (float)GetRenderHeight() / MAP_SIZE_Y});
   DrawText(t, 0, winSize.y - tSz.y, tSz.y, COLOR_UI_TEXT);
+}
+
+void Pacman::DrawPacman(int cellXCenter, int cellYCenter) {
+  Texture2D tex = am->pacman[pacmanAnimFrame];
+  int rotation = GetRotationFromDirection(dir);
+  Texture2D eye =
+      am->eyes[static_cast<Direction>(dir != 4 ? dir : Direction::LEFT)];
+
+  rlPushMatrix();
+  rlTranslatef(cellXCenter, cellYCenter, 0);
+  rlRotatef(rotation, 0, 0, 1);
+  rlTranslatef(-tex.width / 2.0f, -tex.height / 2.0f, 0);
+  DrawTexture(tex, 0, 0, powerTimer > 0.0f ? COLOR_PACMAN_POWER : COLOR_PACMAN);
+  rlPopMatrix();
+
+  rlPushMatrix();
+  if (dir != Direction::UP) {
+    rlTranslatef(cellXCenter, cellYCenter, 0);
+  } else {
+    rlTranslatef(cellXCenter, cellYCenter, 0);
+  }
+  rlTranslatef(-tex.width / 2.0f, -tex.height / 2.0f, 0);
+  DrawTexture(eye, 0, 0, WHITE);
+  rlPopMatrix();
+}
+
+void Pacman::StopAllSounds() {
+  StopSound(am->death);
+  StopSound(am->ghost);
+  StopSound(am->power);
+  StopSound(am->ball);
+  StopSound(am->intro);
 }

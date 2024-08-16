@@ -55,3 +55,23 @@ Vector2 operator/(Vector2 a, float b) {
   }
   return {a.x / b, a.y / b};
 }
+
+int GetRotationFromDirection(Direction dir) {
+  switch (dir) {
+  case UP:
+    return 90;
+    break;
+  case DOWN:
+    return 270;
+    break;
+  case LEFT:
+    return 0;
+    break;
+  case RIGHT:
+    return 180;
+    break;
+  case NONE:
+    return 0;
+    break;
+  }
+}
