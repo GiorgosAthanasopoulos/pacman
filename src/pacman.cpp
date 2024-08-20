@@ -395,8 +395,8 @@ void Pacman::DrawScore() {
 void Pacman::DrawPacman(int cellXCenter, int cellYCenter) {
   Texture2D tex = am->pacman[pacmanAnimFrame];
   int rotation = GetRotationFromDirection(dir);
-  Texture2D eye =
-      am->eyes[static_cast<Direction>(dir != 4 ? dir : Direction::LEFT)];
+  Texture2D eye = am->eyes[static_cast<Direction>(
+      dir != static_cast<Direction>(NONE) ? dir : Direction::LEFT)];
 
   rlPushMatrix();
   rlTranslatef(cellXCenter, cellYCenter, 0);

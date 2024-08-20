@@ -49,4 +49,9 @@ AssetManager::~AssetManager() {
   for (int i = 0; i < EYES_FRAME_COUNT; ++i) {
     UnloadTexture(eyes[i]);
   }
+  for (int i = 0; i < GHOST_COLOR_COUNT; ++i) {
+    for (int j = 0; j < GHOST_FRAME_COUNT; ++j) {
+      UnloadTexture(ghostTex[i][j]);
+    }
+  }
 }
