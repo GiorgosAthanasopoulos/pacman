@@ -1,17 +1,10 @@
 #include "pacman.hpp"
-#include "asset_manager.hpp"
-#include "config.hpp"
-#include "direction.hpp"
-#include "entity.hpp"
-#include "raylib.hpp"
 #include "util.hpp"
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#include <raylib.h>
 #include <rlgl.h>
 #include <sstream>
-#include <string>
 
 // FIX: pacman going through original gate position becomes invisible
 // TODO: move ghosts with ai towards player
@@ -243,6 +236,10 @@ void Pacman::HandleInput() {
       lost = true;
       return;
     } else {
+      if (CountEntities(Entity::GHOST) == 1) {
+        won = true;
+      }
+
       score += SCORE_INTERVAL_KILL;
       StopAllSounds();
       PlaySound(am->ghost);

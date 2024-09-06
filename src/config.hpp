@@ -46,7 +46,7 @@
 #define GATE_OPEN_TIME 2.0f
 #define SCORE_INTERVAL 10
 #define PACMAN_MOVE_INTERVAL 0.1f
-#define POWER_TIME 10.0f
+#define POWER_TIME 5.0f
 #define SCORE_INTERVAL_KILL 50
 
 // ui
